@@ -24,11 +24,14 @@ class ScreenShareApp {
         this.canvas = null;
         this.canvasContext = null;
         this.frameCaptureInterval = null;
+        this.db = null;
+        this.useFirebase = false;
         
         this.initializeElements();
         this.bindEvents();
         this.initializeViewMode();
         this.updateUI();
+        this.initFirebase();
         this.setupBroadcastChannel();
     }
 
@@ -349,6 +352,39 @@ class ScreenShareApp {
         console.error('Screen share error:', error);
     }
 
+    initFirebase() {
+        try {
+            // Check if Firebase is available
+            if (typeof firebase !== 'undefined') {
+                // Firebase configuration - Using demo mode (no auth required)
+                // For production, create your own Firebase project at https://console.firebase.google.com
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDemo-Key-For-Screen-Share",
+                    authDomain: "screen-share-demo.firebaseapp.com",
+                    databaseURL: "https://screen-share-demo-default-rtdb.firebaseio.com",
+                    projectId: "screen-share-demo",
+                    storageBucket: "screen-share-demo.appspot.com",
+                    messagingSenderId: "123456789",
+                    appId: "1:123456789:web:abcdef"
+                };
+
+                // Initialize Firebase only if not already initialized
+                if (!firebase.apps || firebase.apps.length === 0) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                this.db = firebase.database();
+                this.useFirebase = true;
+                console.log('Firebase initialized for cross-device streaming');
+            } else {
+                console.log('Firebase not loaded, using BroadcastChannel only');
+                this.useFirebase = false;
+            }
+        } catch (error) {
+            console.log('Firebase initialization failed, using BroadcastChannel fallback:', error);
+            this.useFirebase = false;
+        }
+    }
+
     setupBroadcastChannel() {
         // Listen for requests from viewvideo.html
         this.channel.onmessage = (event) => {
@@ -378,22 +414,35 @@ class ScreenShareApp {
             this.canvas.height = this.screenVideo.videoHeight;
         });
 
-        // Capture and broadcast frames
+        // Capture and broadcast frames at 30fps for smooth live streaming
         this.frameCaptureInterval = setInterval(() => {
             if (this.screenVideo.readyState === this.screenVideo.HAVE_ENOUGH_DATA && !this.isPaused) {
                 try {
                     this.canvasContext.drawImage(this.screenVideo, 0, 0, this.canvas.width, this.canvas.height);
-                    const frameData = this.canvas.toDataURL('image/jpeg', 0.8);
+                    const frameData = this.canvas.toDataURL('image/jpeg', 0.85);
+                    const timestamp = Date.now();
+                    
+                    // Broadcast to Firebase for cross-device access
+                    if (this.useFirebase && this.db) {
+                        this.db.ref('screenShare/frame').set({
+                            frameData: frameData,
+                            timestamp: timestamp
+                        }).catch(error => {
+                            console.error('Error sending frame to Firebase:', error);
+                        });
+                    }
+                    
+                    // Also send via BroadcastChannel for same-device viewing
                     this.channel.postMessage({
                         type: 'frame',
                         data: frameData,
-                        timestamp: Date.now()
+                        timestamp: timestamp
                     });
                 } catch (error) {
                     console.error('Error capturing frame:', error);
                 }
             }
-        }, 100); // Capture at ~10 fps for performance
+        }, 33); // Capture at ~30 fps for smooth live stream
     }
 
     stopCanvasCapture() {
@@ -408,32 +457,45 @@ class ScreenShareApp {
     }
 
     broadcastStreamStatus(status) {
+        const timestamp = Date.now();
+        
+        // Broadcast to Firebase for cross-device access
+        if (this.useFirebase && this.db) {
+            this.db.ref('screenShare/status').set({
+                status: status,
+                timestamp: timestamp
+            }).catch(error => {
+                console.error('Error sending status to Firebase:', error);
+            });
+        }
+        
+        // Also send via BroadcastChannel for same-device viewing
         this.channel.postMessage({
             type: 'stream-status',
             status: status,
-            timestamp: Date.now()
+            timestamp: timestamp
         });
 
         if (status === 'started') {
             this.channel.postMessage({
                 type: 'stream-update',
                 streamId: 'active',
-                timestamp: Date.now()
+                timestamp: timestamp
             });
         } else if (status === 'stopped') {
             this.channel.postMessage({
                 type: 'stream-stopped',
-                timestamp: Date.now()
+                timestamp: timestamp
             });
         } else if (status === 'paused') {
             this.channel.postMessage({
                 type: 'stream-paused',
-                timestamp: Date.now()
+                timestamp: timestamp
             });
         } else if (status === 'resumed') {
             this.channel.postMessage({
                 type: 'stream-resumed',
-                timestamp: Date.now()
+                timestamp: timestamp
             });
         }
     }
