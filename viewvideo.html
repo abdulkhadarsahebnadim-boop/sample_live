@@ -9,6 +9,8 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <!-- Firebase Configuration -->
+    <script src="firebase-config.js"></script>
     <style>
         .video-view-container {
             max-width: 1400px;
@@ -184,24 +186,24 @@
 
             initFirebase() {
                 try {
-                    // Firebase configuration - Using demo mode (no auth required)
-                    // For production, create your own Firebase project at https://console.firebase.google.com
-                    const firebaseConfig = {
-                        apiKey: "AIzaSyDemo-Key-For-Screen-Share",
-                        authDomain: "screen-share-demo.firebaseapp.com",
-                        databaseURL: "https://screen-share-demo-default-rtdb.firebaseio.com",
-                        projectId: "screen-share-demo",
-                        storageBucket: "screen-share-demo.appspot.com",
-                        messagingSenderId: "123456789",
-                        appId: "1:123456789:web:abcdef"
-                    };
-
-                    // Initialize Firebase only if not already initialized
-                    if (!firebase.apps.length) {
-                        firebase.initializeApp(firebaseConfig);
+                    // Check if Firebase is available and configured
+                    if (typeof firebase !== 'undefined' && typeof FIREBASE_CONFIG !== 'undefined' && isFirebaseConfigured()) {
+                        // Initialize Firebase only if not already initialized
+                        if (!firebase.apps || firebase.apps.length === 0) {
+                            firebase.initializeApp(FIREBASE_CONFIG);
+                        }
+                        this.db = firebase.database();
+                        this.useFirebase = true;
+                        console.log('Firebase initialized for cross-device viewing');
+                    } else {
+                        if (typeof firebase === 'undefined') {
+                            console.log('Firebase SDK not loaded, using BroadcastChannel fallback');
+                        } else if (!isFirebaseConfigured()) {
+                            console.log('Firebase not configured. Update firebase-config.js to enable cross-device viewing');
+                        }
+                        this.useFirebase = false;
+                        this.channel = new BroadcastChannel('screen-share-channel');
                     }
-                    this.db = firebase.database();
-                    this.useFirebase = true;
                 } catch (error) {
                     console.log('Firebase not available, using BroadcastChannel fallback');
                     this.useFirebase = false;

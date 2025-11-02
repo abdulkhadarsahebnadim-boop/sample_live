@@ -23,22 +23,21 @@ To enable `viewvideo.html` to work from **anywhere and any device**, you need to
 
 4. **Update the Configuration in Your Code**
 
-   **In `index.html` and `viewvideo.html`:**
+   Open `firebase-config.js` and replace the placeholder values:
    
-   Find this section in both files:
    ```javascript
-   const firebaseConfig = {
-       apiKey: "AIzaSyDemo-Key-For-Screen-Share",
-       authDomain: "screen-share-demo.firebaseapp.com",
-       databaseURL: "https://screen-share-demo-default-rtdb.firebaseio.com",
-       projectId: "screen-share-demo",
-       storageBucket: "screen-share-demo.appspot.com",
-       messagingSenderId: "123456789",
-       appId: "1:123456789:web:abcdef"
+   const FIREBASE_CONFIG = {
+       apiKey: "YOUR_API_KEY_HERE",           // Replace with your actual API key
+       authDomain: "YOUR_AUTH_DOMAIN_HERE",   // Replace with your auth domain
+       databaseURL: "YOUR_DATABASE_URL_HERE", // Replace with your database URL
+       projectId: "YOUR_PROJECT_ID_HERE",     // Replace with your project ID
+       storageBucket: "YOUR_STORAGE_BUCKET_HERE", // Replace with your storage bucket
+       messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE", // Replace with your sender ID
+       appId: "YOUR_APP_ID_HERE"              // Replace with your app ID
    };
    ```
    
-   Replace it with your actual Firebase configuration.
+   **That's it!** The config file is automatically loaded by both `index.html` and `viewvideo.html`.
 
 5. **Set Database Rules (Important for Security)**
    

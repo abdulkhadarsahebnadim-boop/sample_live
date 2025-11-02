@@ -354,29 +354,21 @@ class ScreenShareApp {
 
     initFirebase() {
         try {
-            // Check if Firebase is available
-            if (typeof firebase !== 'undefined') {
-                // Firebase configuration - Using demo mode (no auth required)
-                // For production, create your own Firebase project at https://console.firebase.google.com
-                const firebaseConfig = {
-                    apiKey: "AIzaSyDemo-Key-For-Screen-Share",
-                    authDomain: "screen-share-demo.firebaseapp.com",
-                    databaseURL: "https://screen-share-demo-default-rtdb.firebaseio.com",
-                    projectId: "screen-share-demo",
-                    storageBucket: "screen-share-demo.appspot.com",
-                    messagingSenderId: "123456789",
-                    appId: "1:123456789:web:abcdef"
-                };
-
+            // Check if Firebase is available and configured
+            if (typeof firebase !== 'undefined' && typeof FIREBASE_CONFIG !== 'undefined' && isFirebaseConfigured()) {
                 // Initialize Firebase only if not already initialized
                 if (!firebase.apps || firebase.apps.length === 0) {
-                    firebase.initializeApp(firebaseConfig);
+                    firebase.initializeApp(FIREBASE_CONFIG);
                 }
                 this.db = firebase.database();
                 this.useFirebase = true;
                 console.log('Firebase initialized for cross-device streaming');
             } else {
-                console.log('Firebase not loaded, using BroadcastChannel only');
+                if (typeof firebase === 'undefined') {
+                    console.log('Firebase SDK not loaded, using BroadcastChannel only');
+                } else if (!isFirebaseConfigured()) {
+                    console.log('Firebase not configured. Update firebase-config.js to enable cross-device streaming');
+                }
                 this.useFirebase = false;
             }
         } catch (error) {
