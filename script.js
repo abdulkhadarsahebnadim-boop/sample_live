@@ -20,11 +20,16 @@ class ScreenShareApp {
         this.isCropResizing = false;
         this.cropResizeHandle = null;
         this.originalCropArea = null;
+        this.channel = new BroadcastChannel('screen-share-channel');
+        this.canvas = null;
+        this.canvasContext = null;
+        this.frameCaptureInterval = null;
         
         this.initializeElements();
         this.bindEvents();
         this.initializeViewMode();
         this.updateUI();
+        this.setupBroadcastChannel();
     }
 
     initializeElements() {
@@ -165,6 +170,13 @@ class ScreenShareApp {
             this.updateStatus('Sharing');
             this.showNotification('Screen sharing started successfully!', 'success');
             
+            // Set up canvas for frame sharing
+            this.setupCanvasCapture();
+            
+            // Broadcast stream status
+            this.broadcastStreamStatus('started');
+            localStorage.setItem('screen-sharing-active', 'true');
+            
             // Simulate viewer count (in a real app, this would come from a server)
             this.simulateViewerCount();
 
@@ -183,6 +195,9 @@ class ScreenShareApp {
             this.mediaStream = null;
         }
 
+        // Stop canvas frame capture
+        this.stopCanvasCapture();
+
         this.screenVideo.srcObject = null;
         this.screenVideo.style.display = 'none';
         this.placeholder.style.display = 'block';
@@ -192,6 +207,10 @@ class ScreenShareApp {
         this.updateUI();
         this.updateStatus('Ready');
         this.showNotification('Screen sharing stopped', 'info');
+        
+        // Broadcast stream stopped
+        this.broadcastStreamStatus('stopped');
+        localStorage.setItem('screen-sharing-active', 'false');
     }
 
     toggleFullscreen() {
@@ -328,6 +347,95 @@ class ScreenShareApp {
         this.showNotification(errorMessage, 'error');
         this.updateStatus('Error');
         console.error('Screen share error:', error);
+    }
+
+    setupBroadcastChannel() {
+        // Listen for requests from viewvideo.html
+        this.channel.onmessage = (event) => {
+            if (event.data.type === 'request-stream') {
+                // Respond with current stream status
+                if (this.isSharing && this.mediaStream) {
+                    this.broadcastStreamStatus('started');
+                } else {
+                    this.broadcastStreamStatus('stopped');
+                }
+            }
+        };
+    }
+
+    setupCanvasCapture() {
+        if (!this.mediaStream || !this.screenVideo) return;
+
+        // Create canvas for frame capture
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = this.screenVideo.videoWidth || 1920;
+        this.canvas.height = this.screenVideo.videoHeight || 1080;
+        this.canvasContext = this.canvas.getContext('2d');
+
+        // Update canvas size when video loads
+        this.screenVideo.addEventListener('loadedmetadata', () => {
+            this.canvas.width = this.screenVideo.videoWidth;
+            this.canvas.height = this.screenVideo.videoHeight;
+        });
+
+        // Capture and broadcast frames
+        this.frameCaptureInterval = setInterval(() => {
+            if (this.screenVideo.readyState === this.screenVideo.HAVE_ENOUGH_DATA && !this.isPaused) {
+                try {
+                    this.canvasContext.drawImage(this.screenVideo, 0, 0, this.canvas.width, this.canvas.height);
+                    const frameData = this.canvas.toDataURL('image/jpeg', 0.8);
+                    this.channel.postMessage({
+                        type: 'frame',
+                        data: frameData,
+                        timestamp: Date.now()
+                    });
+                } catch (error) {
+                    console.error('Error capturing frame:', error);
+                }
+            }
+        }, 100); // Capture at ~10 fps for performance
+    }
+
+    stopCanvasCapture() {
+        if (this.frameCaptureInterval) {
+            clearInterval(this.frameCaptureInterval);
+            this.frameCaptureInterval = null;
+        }
+        if (this.canvas) {
+            this.canvas = null;
+            this.canvasContext = null;
+        }
+    }
+
+    broadcastStreamStatus(status) {
+        this.channel.postMessage({
+            type: 'stream-status',
+            status: status,
+            timestamp: Date.now()
+        });
+
+        if (status === 'started') {
+            this.channel.postMessage({
+                type: 'stream-update',
+                streamId: 'active',
+                timestamp: Date.now()
+            });
+        } else if (status === 'stopped') {
+            this.channel.postMessage({
+                type: 'stream-stopped',
+                timestamp: Date.now()
+            });
+        } else if (status === 'paused') {
+            this.channel.postMessage({
+                type: 'stream-paused',
+                timestamp: Date.now()
+            });
+        } else if (status === 'resumed') {
+            this.channel.postMessage({
+                type: 'stream-resumed',
+                timestamp: Date.now()
+            });
+        }
     }
 
     // Check browser support
@@ -1054,6 +1162,9 @@ class ScreenShareApp {
             
             this.showNotification('Screen sharing paused', 'info');
             
+            // Broadcast pause status
+            this.broadcastStreamStatus('paused');
+            
         } catch (error) {
             console.error('Error pausing screen share:', error);
             this.showNotification('Error pausing screen share', 'error');
@@ -1085,6 +1196,9 @@ class ScreenShareApp {
             this.placeholder.style.display = 'none';
             
             this.showNotification('Screen sharing resumed', 'success');
+            
+            // Broadcast resume status
+            this.broadcastStreamStatus('resumed');
             
         } catch (error) {
             console.error('Error resuming screen share:', error);
