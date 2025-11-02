@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Settings - Live Stream</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚙️ Admin Settings</h1>
+            <nav>
+                <a href="/" class="home-link">← Back to Stream</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="admin-container">
+                <div class="admin-card">
+                    <h2>RTMP Configuration</h2>
+                    <form id="configForm">
+                        <div class="form-group">
+                            <label for="rtmpPort">RTMP Port:</label>
+                            <input type="number" id="rtmpPort" name="rtmpPort" value="1935" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="httpPort">HTTP Port:</label>
+                            <input type="number" id="httpPort" name="httpPort" value="8000" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="streamKey">Stream Key:</label>
+                            <input type="text" id="streamKey" name="streamKey" value="livestream" required>
+                            <small>Use this key in OBS streaming settings</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="rtmpUrl">RTMP URL:</label>
+                            <input type="text" id="rtmpUrl" name="rtmpUrl" value="rtmp://localhost:1935/live" readonly>
+                            <small>Server URL for OBS</small>
+                        </div>
+
+                        <button type="submit" class="btn-primary">Save Configuration</button>
+                    </form>
+                </div>
+
+                <div class="admin-card">
+                    <h2>OBS Setup Instructions</h2>
+                    <div class="instructions">
+                        <ol>
+                            <li>Open OBS Studio</li>
+                            <li>Go to Settings → Stream</li>
+                            <li>Select "Custom..." as Service</li>
+                            <li>Enter the RTMP URL and Stream Key from above</li>
+                            <li>Click "OK" and start streaming!</li>
+                        </ol>
+                    </div>
+                    <button id="copyRtmp" class="btn-secondary">Copy RTMP URL</button>
+                    <button id="copyKey" class="btn-secondary">Copy Stream Key</button>
+                </div>
+
+                <div class="admin-card">
+                    <h2>Server Status</h2>
+                    <div class="status-display">
+                        <div class="status-item">
+                            <span class="status-label">Web Server:</span>
+                            <span class="status-value status-online">Online</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">RTMP Server:</span>
+                            <span class="status-value status-online">Online</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">HTTP Server:</span>
+                            <span class="status-value status-online">Online</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h2>Stream Statistics</h2>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Active Viewers</span>
+                            <span class="stat-value" id="viewers">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Stream Status</span>
+                            <span class="stat-value" id="streamStat">Idle</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Uptime</span>
+                            <span class="stat-value" id="uptime">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Web RTMP Stream</p>
+        </footer>
+    </div>
+
+    <script>
+        const form = document.getElementById('configForm');
+        const rtmpPort = document.getElementById('rtmpPort');
+        const httpPort = document.getElementById('httpPort');
+        const streamKey = document.getElementById('streamKey');
+        const rtmpUrlInput = document.getElementById('rtmpUrl');
+        const copyRtmpBtn = document.getElementById('copyRtmp');
+        const copyKeyBtn = document.getElementById('copyKey');
+
+        // Load current configuration
+        fetch('/api/config')
+            .then(res => res.json())
+            .then(data => {
+                rtmpPort.value = data.rtmpPort;
+                httpPort.value = data.httpPort;
+                streamKey.value = data.streamKey;
+                updateRtmpUrl();
+            });
+
+        // Update RTMP URL when inputs change
+        rtmpPort.addEventListener('input', updateRtmpUrl);
+        httpPort.addEventListener('input', updateRtmpUrl);
+        streamKey.addEventListener('input', updateRtmpUrl);
+
+        function updateRtmpUrl() {
+            rtmpUrlInput.value = `rtmp://localhost:${rtmpPort.value}/live/${streamKey.value}`;
+        }
+
+        // Handle form submission
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const config = {
+                rtmpPort: rtmpPort.value,
+                httpPort: httpPort.value,
+                streamKey: streamKey.value
+            };
+
+            fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert('Configuration saved successfully!');
+                updateRtmpUrl();
+            })
+            .catch(err => alert('Error saving configuration: ' + err));
+        });
+
+        // Copy functions
+        copyRtmpBtn.addEventListener('click', () => {
+            rtmpUrlInput.select();
+            document.execCommand('copy');
+            alert('RTMP URL copied to clipboard!');
+        });
+
+        copyKeyBtn.addEventListener('click', () => {
+            streamKey.select();
+            document.execCommand('copy');
+            alert('Stream Key copied to clipboard!');
+        });
+
+        // Update statistics
+        function updateStats() {
+            fetch('http://localhost:8000/api/streams')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.live && data.live.stream) {
+                        document.getElementById('streamStat').textContent = 'Live';
+                        document.getElementById('streamStat').className = 'stat-value status-online';
+                    } else {
+                        document.getElementById('streamStat').textContent = 'Idle';
+                        document.getElementById('streamStat').className = 'stat-value';
+                    }
+                })
+                .catch(err => console.error('Error fetching stats:', err));
+        }
+
+        setInterval(updateStats, 3000);
+        updateStats();
+    </script>
+</body>
+</html>
+

@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Stream</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>🎥 Live Stream</h1>
             <nav>
-                <a href="admin.html" class="admin-link">Admin Settings</a>
+                <a href="/admin" class="admin-link">Admin Settings</a>
             </nav>
         </header>
 
@@ -58,42 +58,29 @@
         const statusEl = document.getElementById('stream-status');
         const statusText = statusEl.querySelector('.status-text');
 
-        // Configuration - Update these with your server details
-        const STREAM_SERVER = 'http://localhost:8000';  // Change to your server URL
-        const STREAM_PATH = '/live/stream/index.m3u8';
-
         // Initialize HLS player
         if (Hls.isSupported()) {
-            const hls = new Hls({
-                debug: false,
-                enableWorker: true,
-                lowLatencyMode: true
-            });
-            hls.loadSource(STREAM_SERVER + STREAM_PATH);
+            const hls = new Hls();
+            hls.loadSource('http://localhost:8000/live/stream/index.m3u8');
             hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, function() {
                 video.play();
                 updateStatus('online');
             });
-            hls.on(Hls.Events.ERROR, function(event, data) {
-                if (data.fatal) {
-                    updateStatus('offline');
-                }
+            hls.on(Hls.Events.ERROR, function() {
+                updateStatus('offline');
             });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             // For Safari
-            video.src = STREAM_SERVER + STREAM_PATH;
+            video.src = 'http://localhost:8000/live/stream/index.m3u8';
             video.addEventListener('loadedmetadata', function() {
                 updateStatus('online');
             });
-        } else {
-            console.error('HLS not supported');
-            updateStatus('offline');
         }
 
         // Check stream status periodically
         function checkStreamStatus() {
-            fetch(STREAM_SERVER + '/api/streams')
+            fetch('http://localhost:8000/api/streams')
                 .then(res => res.json())
                 .then(data => {
                     if (data.live && data.live.stream) {

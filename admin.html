@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Settings - Live Stream</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚙️ Admin Settings</h1>
+            <nav>
+                <a href="index.html" class="home-link">← Back to Stream</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="admin-container">
+                <div class="admin-card">
+                    <h2>RTMP Configuration</h2>
+                    <div class="config-display">
+                        <div class="info-item">
+                            <span class="info-label">RTMP Port:</span>
+                            <span class="info-value">1935</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">HTTP Port:</span>
+                            <span class="info-value">8000</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Stream Key:</span>
+                            <span class="info-value" id="streamKeyDisplay">livestream</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">RTMP URL:</span>
+                            <span class="info-value" id="rtmpUrlDisplay">rtmp://localhost:1935/live/livestream</span>
+                        </div>
+                    </div>
+                    <button id="copyRtmp" class="btn-primary">Copy RTMP URL</button>
+                    <button id="copyKey" class="btn-secondary">Copy Stream Key</button>
+                </div>
+
+                <div class="admin-card">
+                    <h2>OBS Setup Instructions</h2>
+                    <div class="instructions">
+                        <ol>
+                            <li>Open OBS Studio</li>
+                            <li>Go to Settings → Stream</li>
+                            <li>Select "Custom..." as Service</li>
+                            <li>Enter the RTMP URL and Stream Key from above</li>
+                            <li>Click "OK" and start streaming!</li>
+                        </ol>
+                    </div>
+                    <div class="alert">
+                        <strong>Note:</strong> For production use, update the RTMP server URL in the configuration.
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h2>Server Information</h2>
+                    <div class="status-display">
+                        <div class="status-item">
+                            <span class="status-label">Web Server:</span>
+                            <span class="status-value">Configurable</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">RTMP Server:</span>
+                            <span class="status-value">Required</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">HTTP Server:</span>
+                            <span class="status-value">Required</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h2>Deployment Instructions</h2>
+                    <div class="instructions">
+                        <p><strong>For GitHub Pages / Netlify:</strong></p>
+                        <ol>
+                            <li>Update <code>STREAM_SERVER</code> in index.html to your RTMP server URL</li>
+                            <li>Deploy HTML files to GitHub Pages or Netlify</li>
+                            <li>Run RTMP server separately (Node.js server)</li>
+                            <li>Configure OBS to stream to your RTMP server</li>
+                        </ol>
+                        <div class="alert">
+                            <strong>Important:</strong> Static hosting (GitHub Pages/Netlify) can only serve the webpage. 
+                            You need a separate server for RTMP streaming.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Web RTMP Stream</p>
+        </footer>
+    </div>
+
+    <script>
+        const copyRtmpBtn = document.getElementById('copyRtmp');
+        const copyKeyBtn = document.getElementById('copyKey');
+        const rtmpUrlDisplay = document.getElementById('rtmpUrlDisplay');
+        const streamKeyDisplay = document.getElementById('streamKeyDisplay');
+
+        // Copy RTMP URL to clipboard
+        copyRtmpBtn.addEventListener('click', () => {
+            const text = rtmpUrlDisplay.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('RTMP URL copied to clipboard!');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showNotification('RTMP URL copied to clipboard!');
+            });
+        });
+
+        // Copy Stream Key to clipboard
+        copyKeyBtn.addEventListener('click', () => {
+            const text = streamKeyDisplay.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('Stream Key copied to clipboard!');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showNotification('Stream Key copied to clipboard!');
+            });
+        });
+
+        // Simple notification function
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4ade80; color: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10000; animation: slideIn 0.3s ease;';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 3000);
+        }
+
+        // Add animation styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+            .config-display {
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+            }
+            .alert {
+                background: #fef3c7;
+                border-left: 4px solid #f59e0b;
+                padding: 15px;
+                border-radius: 8px;
+                margin-top: 15px;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
+
