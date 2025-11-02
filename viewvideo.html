@@ -150,8 +150,13 @@
                 <video id="viewVideo" autoplay playsinline></video>
                 <div id="videoPlaceholder" class="video-placeholder">
                     <i class="fas fa-video"></i>
-                    <h3>Waiting for video stream...</h3>
-                    <p>Please start sharing on the main page</p>
+                    <h3 id="placeholderTitle">Waiting for video stream...</h3>
+                    <p id="placeholderMessage">Please start sharing on the main page</p>
+                    <div id="firebaseStatus" style="display: none; margin-top: 20px; padding: 15px; background: rgba(255, 193, 7, 0.1); border-radius: 8px; color: #ff9800;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Firebase Not Configured</strong>
+                        <p style="margin-top: 10px; font-size: 0.9rem;">To view from other devices, please configure Firebase in <code>firebase-config.js</code></p>
+                    </div>
                 </div>
             </div>
 
@@ -195,20 +200,59 @@
                         this.db = firebase.database();
                         this.useFirebase = true;
                         console.log('Firebase initialized for cross-device viewing');
+                        
+                        // Test Firebase connection
+                        this.testFirebaseConnection();
                     } else {
                         if (typeof firebase === 'undefined') {
                             console.log('Firebase SDK not loaded, using BroadcastChannel fallback');
+                            this.showFirebaseWarning('Firebase SDK not loaded');
                         } else if (!isFirebaseConfigured()) {
                             console.log('Firebase not configured. Update firebase-config.js to enable cross-device viewing');
+                            this.showFirebaseWarning('Firebase not configured');
                         }
                         this.useFirebase = false;
                         this.channel = new BroadcastChannel('screen-share-channel');
                     }
                 } catch (error) {
-                    console.log('Firebase not available, using BroadcastChannel fallback');
+                    console.error('Firebase initialization error:', error);
+                    this.showFirebaseWarning('Firebase initialization failed');
                     this.useFirebase = false;
                     this.channel = new BroadcastChannel('screen-share-channel');
                 }
+            }
+
+            showFirebaseWarning(reason) {
+                const statusDiv = document.getElementById('firebaseStatus');
+                const placeholderTitle = document.getElementById('placeholderTitle');
+                const placeholderMessage = document.getElementById('placeholderMessage');
+                
+                if (statusDiv && placeholderTitle && placeholderMessage) {
+                    statusDiv.style.display = 'block';
+                    placeholderTitle.textContent = 'Cross-Device Viewing Unavailable';
+                    placeholderMessage.innerHTML = `
+                        <strong>Issue:</strong> ${reason}<br>
+                        <strong>Solution:</strong> Configure Firebase to enable viewing from any device.<br>
+                        <small>See FIREBASE_SETUP.md for instructions</small>
+                    `;
+                }
+            }
+
+            testFirebaseConnection() {
+                if (!this.db) return;
+                
+                // Test connection by trying to read
+                const testRef = this.db.ref('screenShare');
+                testRef.once('value')
+                    .then(() => {
+                        console.log('Firebase connection successful');
+                        this.updateStatus('waiting', 'Firebase connected - Waiting for stream...');
+                    })
+                    .catch((error) => {
+                        console.error('Firebase connection failed:', error);
+                        this.showFirebaseWarning(`Firebase connection error: ${error.message}`);
+                        this.updateStatus('waiting', 'Firebase connection failed');
+                    });
             }
 
             init() {
@@ -237,31 +281,54 @@
             }
 
             setupFirebaseListeners() {
-                // Listen for frame updates
-                this.frameRef = this.db.ref('screenShare/frame');
-                this.frameRef.on('value', (snapshot) => {
-                    const data = snapshot.val();
-                    if (data && data.frameData) {
-                        this.handleFrame({ data: data.frameData, timestamp: data.timestamp });
-                    }
-                });
-
-                // Listen for status updates
-                this.statusRef = this.db.ref('screenShare/status');
-                this.statusRef.on('value', (snapshot) => {
-                    const status = snapshot.val();
-                    if (status) {
-                        if (status.status === 'started') {
-                            this.updateStatus('connected', 'Connected - Streaming live');
-                        } else if (status.status === 'stopped') {
-                            this.handleStreamStopped();
-                        } else if (status.status === 'paused') {
-                            this.handleStreamPaused();
-                        } else if (status.status === 'resumed') {
-                            this.handleStreamResumed();
+                try {
+                    // Listen for frame updates
+                    this.frameRef = this.db.ref('screenShare/frame');
+                    this.frameRef.on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data && data.frameData) {
+                            this.handleFrame({ data: data.frameData, timestamp: data.timestamp });
+                        } else {
+                            // No data means stream hasn't started or was cleared
+                            if (this.isStreaming) {
+                                // Stream was active but frames stopped coming
+                                console.log('Frames stopped receiving');
+                            }
                         }
-                    }
-                });
+                    }, (error) => {
+                        console.error('Firebase frame listener error:', error);
+                        this.showFirebaseWarning(`Database error: ${error.message}`);
+                    });
+
+                    // Listen for status updates
+                    this.statusRef = this.db.ref('screenShare/status');
+                    this.statusRef.on('value', (snapshot) => {
+                        const status = snapshot.val();
+                        if (status) {
+                            if (status.status === 'started') {
+                                this.updateStatus('connected', 'Stream started - Waiting for frames...');
+                                // Hide Firebase warning if stream starts
+                                const statusDiv = document.getElementById('firebaseStatus');
+                                if (statusDiv) statusDiv.style.display = 'none';
+                            } else if (status.status === 'stopped') {
+                                this.handleStreamStopped();
+                            } else if (status.status === 'paused') {
+                                this.handleStreamPaused();
+                            } else if (status.status === 'resumed') {
+                                this.handleStreamResumed();
+                            }
+                        } else {
+                            // No status means sharing hasn't started
+                            this.updateStatus('waiting', 'Waiting for screen sharing to start...');
+                        }
+                    }, (error) => {
+                        console.error('Firebase status listener error:', error);
+                        this.showFirebaseWarning(`Database error: ${error.message}`);
+                    });
+                } catch (error) {
+                    console.error('Error setting up Firebase listeners:', error);
+                    this.showFirebaseWarning(`Setup error: ${error.message}`);
+                }
             }
 
             setupBroadcastChannelListeners() {
@@ -287,11 +354,16 @@
             }
 
             checkForStream() {
-                if (!this.useFirebase) {
-                    // Check localStorage for active sharing (BroadcastChannel mode)
+                if (this.useFirebase && this.db) {
+                    // Firebase mode - listeners will handle updates
+                    this.updateStatus('waiting', 'Connected to Firebase - Waiting for stream...');
+                } else {
+                    // BroadcastChannel mode - only works on same device
                     const isSharing = localStorage.getItem('screen-sharing-active');
                     if (isSharing === 'true') {
-                        this.updateStatus('waiting', 'Connecting to stream...');
+                        this.updateStatus('waiting', 'Connecting to stream (same device only)...');
+                    } else {
+                        this.updateStatus('waiting', 'Waiting for stream... (Configure Firebase for cross-device)');
                     }
                 }
             }
@@ -302,6 +374,11 @@
                     this.videoPlaceholder.style.display = 'none';
                     this.viewVideo.style.display = 'none';
                     this.canvas.style.display = 'block';
+                    
+                    // Hide Firebase warning once streaming starts
+                    const statusDiv = document.getElementById('firebaseStatus');
+                    if (statusDiv) statusDiv.style.display = 'none';
+                    
                     this.updateStatus('connected', 'Live Streaming');
                     this.startSmoothPlayback();
                 }
