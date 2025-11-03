@@ -17,4 +17,10 @@ function isFirebaseConfigured() {
     return FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE" && 
            FIREBASE_CONFIG.databaseURL !== "YOUR_DATABASE_URL_HERE";
 }
-
+// Initialize Firebase
+if (isFirebaseConfigured()) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    console.log("Firebase initialized successfully");
+} else {
+    console.error("Firebase configuration is missing or incomplete");
+}
